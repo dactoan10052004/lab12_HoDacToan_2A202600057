@@ -67,10 +67,9 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          railway up \
-            --service d2874f62-f741-4482-a0a0-d98bf225564a \
-            --detach
+          RAILWAY_PROJECT_ID: 31a973d4-ad37-47df-961c-7e88d15f111a
+          RAILWAY_SERVICE_ID: d2874f62-f741-4482-a0a0-d98bf225564a
+        run: railway up --service toanhd --detach
 
       - name: Verify deployment
         run: |
