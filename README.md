@@ -1,109 +1,126 @@
-# Day 12 — Deployment: Đưa Agent Lên Cloud
-
-> **AICB-P1 · VinUniversity 2026**  
-> Repository thực hành đi kèm bài giảng Day 12.  
-> Mỗi phần có ví dụ **cơ bản** (hiểu concept) và **chuyên sâu** (production-ready).
 
 ---
 
-## Cấu Trúc Project
+## 🎓 Final Project — Ho Dac Toan (2A202600057)
 
-```
-day12_ha-tang-cloud_va_deployment/
-├── 01-localhost-vs-production/     # Section 1: Dev ≠ Production
-│   ├── develop/                      #   Agent "đúng kiểu localhost"
-│   └── production/                   #   12-Factor compliant agent
-│
-├── 02-docker/                      # Section 2: Containerization
-│   ├── develop/                      #   Dockerfile đơn giản
-│   └── production/                   #   Multi-stage + Docker Compose stack
-│
-├── 03-cloud-deployment/            # Section 3: Cloud Options
-│   ├── railway/                    #   Deploy Railway (< 5 phút)
-│   ├── render/                     #   Deploy Render + render.yaml
-│   └── production-cloud-run/         #   GCP Cloud Run + CI/CD
-│
-├── 04-api-gateway/                 # Section 4: Security
-│   ├── develop/                      #   API Key authentication
-│   └── production/                   #   JWT + Rate Limiting + Cost Guard
-│
-├── 05-scaling-reliability/         # Section 5: Scale & Reliability
-│   ├── develop/                      #   Health check + graceful shutdown
-│   └── production/                   #   Stateless + Redis + Nginx LB
-│
-├── 06-lab-complete/                # Lab 12: Production-ready agent
-│   └── (full project kết hợp tất cả)
-│
-└── utils/                          # Mock LLM dùng chung (không cần API key)
-```
+Production-ready AI Agent kết hợp tất cả Day 12 concepts.
 
----
+**Public URL:** `https://toanhd-production.up.railway.app`
 
-## 🚀 Bắt Đầu Nhanh
-
-**Muốn thử ngay?** → [QUICK_START.md](QUICK_START.md) (5 phút)
-
-**Muốn học kỹ?** → [CODE_LAB.md](CODE_LAB.md) (3-4 giờ)
-
-## Cách Học
-
-| Bước | Làm gì |
-|------|--------|
-| 0 | **[Khuyến nghị]** Đọc [QUICK_START.md](QUICK_START.md) để thử nhanh |
-| 1 | Đọc [CODE_LAB.md](CODE_LAB.md) để hiểu chi tiết |
-| 2 | Chạy ví dụ **basic** trước — hiểu concept |
-| 3 | So sánh với ví dụ **advanced** — thấy sự khác biệt |
-| 4 | Tự làm Lab 06 từ đầu trước khi xem solution |
-| 5 | Tham khảo [QUICK_REFERENCE.md](QUICK_REFERENCE.md) khi cần |
-| 6 | Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md) khi gặp lỗi |
-
----
-
-## Yêu Cầu
+### Setup Local
 
 ```bash
-python 3.11+
-docker & docker compose
+# 1. Clone repo
+git clone https://github.com/dactoan12345/lab12_HoDacToan_2A202600057
+cd lab12_HoDacToan_2A202600057
+
+# 2. Tạo file env
+cp .env.example .env.local
+# Mở .env.local và set AGENT_API_KEY
+
+# 3. Chạy với Docker Compose (agent + redis + nginx)
+docker compose up
+
+# Test tại http://localhost/health
 ```
 
-Mỗi folder có `requirements.txt` riêng. Không cần API key thật — các ví dụ dùng **mock LLM** để chạy offline.
+### Setup Local (không Docker)
+
+```bash
+pip install -r requirements.txt
+export AGENT_API_KEY=your-key   # Windows: $env:AGENT_API_KEY="your-key"
+python -m app.main
+# Server chạy tại http://localhost:8000
+```
+
+### Test API
+
+```bash
+# Health check
+curl http://localhost/health
+
+# Cần API key → 401
+curl -X POST http://localhost/ask \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"alice","question":"Hello"}'
+
+# Có API key → 200
+curl -X POST http://localhost/ask \
+  -H "X-API-Key: your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"alice","question":"Hello"}'
+```
+
+### Deploy Lên Railway Project Mới
+
+> Nếu deploy sang Railway project khác (hoặc account khác), cần làm thêm bước kết nối Redis vì Railway **không đọc** `docker-compose.yml` — env vars phải set thủ công trên platform.
+
+**Bước 1 — Deploy agent:**
+```bash
+cd 2A202600057-production-agent
+railway login
+railway init          # tạo project mới, đặt tên tuỳ ý
+railway up
+```
+
+**Bước 2 — Thêm Redis service:**
+```bash
+railway add --database redis
+# Railway tạo Redis container và tự sinh REDIS_URL, REDISPASSWORD, v.v.
+```
+
+**Bước 3 — Lấy REDIS_URL từ Redis service:**
+```bash
+railway service Redis       # switch sang Redis service
+railway variables --json    # tìm field "REDIS_URL"
+# Ví dụ: redis://default:somepassword@redis.railway.internal:6379
+```
+
+**Bước 4 — Set REDIS_URL cho agent service:**
+```bash
+railway service <tên-agent>   # switch về agent service
+railway variables set REDIS_URL="redis://default:<password>@redis.railway.internal:6379"
+```
+
+**Bước 5 — Set các env vars còn lại:**
+```bash
+railway variables set AGENT_API_KEY="your-secret-key"
+railway variables set ENVIRONMENT="production"
+railway variables set LOG_LEVEL="INFO"
+railway variables set RATE_LIMIT_PER_MINUTE="10"
+railway variables set MONTHLY_BUDGET_USD="10.0"
+```
+
+**Bước 6 — Redeploy để nhận env vars mới:**
+```bash
+railway up
+```
+
+**Kiểm tra kết quả:**
+```bash
+# /health phải trả "storage":"redis" (không phải "memory")
+curl https://your-new-app.railway.app/health
+```
+
+> Sau khi set xong, mọi lần `railway up` tiếp theo **không cần set lại** — Railway giữ env vars vĩnh viễn trên project đó.
 
 ---
 
-## Sections
+### Architecture
 
-| # | Folder | Concept chính |
-|---|--------|--------------|
-| 1 | `01-localhost-vs-production` | Dev/prod gap, 12-factor, secrets |
-| 2 | `02-docker` | Dockerfile, multi-stage, docker-compose |
-| 3 | `03-cloud-deployment` | Railway, Render, Cloud Run |
-| 4 | `04-api-gateway` | Auth, rate limiting, cost protection |
-| 5 | `05-scaling-reliability` | Health check, stateless, rolling deploy |
-| 6 | `06-lab-complete` | **Full production agent** |
+```
+┌─────────┐   HTTPS    ┌───────────────────┐   proxy    ┌─────────────────────────┐   TCP    ┌─────────────────────┐
+│ Client  │ ─────────► │  Nginx (port 80)  │ ─────────► │  FastAPI Agent (:8000)  │ ───────► │  Redis (port 6379)  │
+│ Browser │            │  Load Balancer    │            │                         │          │  conversation       │
+│  curl   │            │  SSL termination  │            │  POST /ask              │          │  history per        │
+└─────────┘            └───────────────────┘            │    → verify_api_key     │          │  user_id            │
+                                                        │    → check_rate_limit   │          │  (rpush/lrange)     │
+                                                        │    → check_budget       │          └─────────────────────┘
+                                                        │    → llm_ask            │
+                                                        │  GET /health → 200 ok   │
+                                                        │  GET /ready  → 200/503  │
+                                                        │  GET /metrics (authed)  │
+                                                        └─────────────────────────┘
+```
 
----
-
-## 📚 Lab Materials
-
-Chúng tôi đã chuẩn bị đầy đủ tài liệu hướng dẫn:
-
-### Cho Sinh Viên
-
-| Tài liệu | Mô tả | Thời gian |
-|----------|-------|-----------|
-| **[CODE_LAB.md](CODE_LAB.md)** | Hướng dẫn lab chi tiết từng bước | 3-4 giờ |
-| **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** | Cheat sheet các lệnh và patterns | Tra cứu |
-| **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** | Giải quyết lỗi thường gặp | Khi cần |
-
-### Cho Giảng Viên
-
-| Tài liệu | Mô tả |
-|----------|-------|
-| **[INSTRUCTOR_GUIDE.md](INSTRUCTOR_GUIDE.md)** | Hướng dẫn chấm điểm và đánh giá |
-
-### Cách Sử Dụng
-
-1. **Trước lab:** Đọc [CODE_LAB.md](CODE_LAB.md) để hiểu tổng quan
-2. **Trong lab:** Làm theo từng Part, tham khảo [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
-3. **Gặp lỗi:** Xem [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-4. **Sau lab:** Nộp Part 6 Final Project để chấm điểm
+**Request flow:** `Client` → `Nginx` (rate limit, SSL) → `Agent` (auth → rate limit → budget → LLM) → `Redis` (history)
