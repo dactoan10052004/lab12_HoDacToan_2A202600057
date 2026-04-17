@@ -21,6 +21,8 @@ cp .env.example .env.local
 # 3. Chạy với Docker Compose (agent + redis + nginx)
 docker compose up
 
+# Docker Compose exposes the app through Nginx on port 80.
+
 # Test tại http://localhost/health
 ```
 
@@ -31,11 +33,15 @@ pip install -r requirements.txt
 export AGENT_API_KEY=your-key   # Windows: $env:AGENT_API_KEY="your-key"
 python -m app.main
 # Server chạy tại http://localhost:8000
+# Test with http://localhost:8000/health
 ```
 
 ### Test API
 
 ```bash
+# Docker Compose uses http://localhost
+# Direct Python run uses http://localhost:8000
+
 # Health check
 curl http://localhost/health
 
@@ -57,9 +63,9 @@ curl -X POST http://localhost/ask \
 
 **Bước 1 — Deploy agent:**
 ```bash
-cd 2A202600057-production-agent
 railway login
 railway init          # tạo project mới, đặt tên tuỳ ý
+# Or use `railway link` if the Railway project already exists.
 railway up
 ```
 
@@ -71,14 +77,14 @@ railway add --database redis
 
 **Bước 3 — Lấy REDIS_URL từ Redis service:**
 ```bash
-railway service Redis       # switch sang Redis service
+railway service link Redis  # switch sang Redis service
 railway variables --json    # tìm field "REDIS_URL"
 # Ví dụ: redis://default:somepassword@redis.railway.internal:6379
 ```
 
 **Bước 4 — Set REDIS_URL cho agent service:**
 ```bash
-railway service <tên-agent>   # switch về agent service
+railway service link <tên-agent>   # switch về agent service
 railway variables set REDIS_URL="redis://default:<password>@redis.railway.internal:6379"
 ```
 
